@@ -1,0 +1,570 @@
+# CodeFlow — Complete Project Explanation
+
+**CodeFlow** is a **typing practice web app for developers**. It displays real code snippets (C++, Python) and the user types them out character-by-character to improve coding speed. It tracks WPM (words per minute), accuracy, and time.
+
+Built with **React 19 + Vite 8 + Tailwind CSS 4**.
+
+---
+
+## Project Structure
+
+```
+codeflow/
+├── public/                    # Static assets served as-is
+│   ├── favicon.svg            # Browser tab icon
+│   └── icons.svg              # SVG sprite (social icons)
+├── src/                       # Application source code
+│   ├── assets/                # Imported assets
+│   │   ├── hero.png
+│   │   ├── react.svg
+│   │   └── vite.svg
+│   ├── components/
+│   │   └── TypingPractice.jsx # ★ Main component (core logic)
+│   ├── App.jsx                # Root React component
+│   ├── index.css              # Global styles & animations
+│   └── main.jsx               # App entry point
+├── .gitignore                 # Git ignore rules
+├── .oxlintrc.json             # Linter configuration
+├── index.html                 # HTML shell
+├── package.json               # Dependencies & scripts
+├── vite.config.js             # Build tool configuration
+└── README.md                  # Template docs
+```
+
+---
+
+## Root Configuration Files
+
+---
+
+### [package.json](file:///c:/Users/HP/codeflow/package.json)
+
+The project manifest. Defines the project name, scripts, and all dependencies.
+
+```json
+{
+  "name": "codeflow",
+  "private": true,        // Not published to npm
+  "version": "0.0.0",
+  "type": "module",        // Use ES modules (import/export)
+```
+
+**Scripts:**
+| Script | Command | Purpose |
+|--------|---------|---------|
+| `dev` | `vite` | Starts the local dev server with hot-reload |
+| `build` | `vite build` | Bundles the app for production |
+| `lint` | `oxlint` | Runs the OxLint linter |
+| `preview` | `vite preview` | Preview the production build locally |
+
+**Dependencies (runtime):**
+| Package | Purpose |
+|---------|---------|
+| `react` (19.x) | UI library for building components |
+| `react-dom` (19.x) | React renderer for the browser DOM |
+| `tailwindcss` (4.x) | Utility-first CSS framework |
+| `@tailwindcss/vite` | Tailwind CSS plugin for Vite (CSS processing) |
+
+**Dev Dependencies (build-time only):**
+| Package | Purpose |
+|---------|---------|
+| `@vitejs/plugin-react` | Enables JSX and Fast Refresh in Vite |
+| `vite` (8.x) | The build tool / dev server |
+| `oxlint` | Fast JavaScript/React linter |
+| `@types/react`, `@types/react-dom` | TypeScript type definitions (for IDE autocomplete) |
+
+---
+
+### [vite.config.js](file:///c:/Users/HP/codeflow/vite.config.js)
+
+Configures Vite (the build tool).
+
+```js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'      // Adds JSX support + Fast Refresh
+import tailwindcss from '@tailwindcss/vite'    // Processes Tailwind CSS
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],  // Both plugins are registered
+})
+```
+
+- **`react()`** — Transforms JSX syntax into JavaScript and enables React Fast Refresh (instant updates without losing state during development).
+- **`tailwindcss()`** — Scans your source files for Tailwind class names and generates only the CSS you actually use.
+
+---
+
+### [index.html](file:///c:/Users/HP/codeflow/index.html)
+
+The single HTML page that the entire app lives inside (Single Page Application).
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />  <!-- Tab icon -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CodeFlow — Typing Practice for Developers</title>
+    <meta name="description" content="..." />  <!-- SEO description -->
+    
+    <!-- Google Fonts: Inter (body text) + JetBrains Mono (code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-[#0a0a0f] text-gray-100 antialiased">  <!-- Dark bg, light text -->
+    <div id="root"></div>              <!-- React mounts here -->
+    <script type="module" src="/src/main.jsx"></script>  <!-- Entry script -->
+  </body>
+</html>
+```
+
+**Key points:**
+- `<div id="root">` — React renders the entire app inside this div
+- Loads two Google Fonts: **Inter** (clean sans-serif for UI) and **JetBrains Mono** (monospace for code display)
+- Dark background `#0a0a0f` set directly on `<body>`
+- `antialiased` — Tailwind class for smoother font rendering
+
+---
+
+### [.gitignore](file:///c:/Users/HP/codeflow/.gitignore)
+
+Tells Git which files to NOT track. Standard Vite template ignores:
+- `node_modules/` — installed packages (re-installable via `npm install`)
+- `dist/` — production build output
+- Log files, editor configs, OS files
+
+---
+
+### [.oxlintrc.json](file:///c:/Users/HP/codeflow/.oxlintrc.json)
+
+Configuration for **OxLint** (a fast Rust-based linter).
+
+```json
+{
+  "plugins": ["react", "oxc"],   // Enable React-specific and OxC rules
+  "rules": {
+    "react/rules-of-hooks": "error",              // Hooks must follow rules (critical!)
+    "react/only-export-components": ["warn", ...]  // Warn if non-components are exported
+  }
+}
+```
+
+- `rules-of-hooks` as **error** — prevents breaking React's hook rules (e.g., calling hooks inside conditions)
+- `only-export-components` as **warn** — gentle reminder to keep files focused
+
+---
+
+## Source Files (`src/`)
+
+---
+
+### [main.jsx](file:///c:/Users/HP/codeflow/src/main.jsx) — The Entry Point
+
+```jsx
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";           // Load global styles
+import App from "./App.jsx";    // Load root component
+
+createRoot(document.getElementById("root")).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+```
+
+**Line by line:**
+1. `createRoot(document.getElementById("root"))` — Finds the `<div id="root">` in `index.html` and creates a React root
+2. `.render(...)` — Renders the `<App />` component into that div
+3. `<StrictMode>` — A React development tool that:
+   - Runs components twice to detect side effects
+   - Warns about deprecated APIs
+   - Has **no effect in production**
+4. `import "./index.css"` — Loads the global stylesheet (Tailwind + custom animations)
+
+---
+
+### [App.jsx](file:///c:/Users/HP/codeflow/src/App.jsx) — Root Component
+
+```jsx
+import TypingPractice from "./components/TypingPractice";
+
+export default function App() {
+  return <TypingPractice />;
+}
+```
+
+Extremely simple — just renders the `TypingPractice` component. This is a thin wrapper that could be expanded later with routing, context providers, etc.
+
+---
+
+### [index.css](file:///c:/Users/HP/codeflow/src/index.css) — Global Styles & Design System
+
+This is the **design foundation** of the app. It uses **Tailwind CSS v4** syntax.
+
+#### 1. Tailwind Import
+```css
+@import "tailwindcss";   /* Loads all of Tailwind's utility classes */
+```
+
+#### 2. Custom Theme Tokens (`@theme`)
+```css
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-surface-0: #0a0a0f;     /* Darkest background */
+  --color-surface-1: #111118;     /* Card backgrounds */
+  --color-surface-2: #1a1a24;     /* Elevated surfaces */
+  --color-surface-3: #24243a;     /* Highest elevation */
+  --color-border: #2a2a3e;        /* Default borders */
+  --color-border-focus: #6366f1;  /* Focused element border (indigo) */
+
+  --color-accent: #818cf8;        /* Primary accent (indigo-400) */
+  --color-accent-bright: #a5b4fc; /* Brighter accent for emphasis */
+  --color-correct: #34d399;       /* Green for correct characters */
+  --color-incorrect: #f87171;     /* Red for wrong characters */
+  --color-cursor: #818cf8;        /* Blinking cursor color */
+  --color-muted: #64748b;         /* Subdued text */
+}
+```
+
+These create a **layered dark theme** with 4 surface levels (darker → lighter) and semantic colors for correct/incorrect typing feedback. Tailwind v4 allows using these as classes like `bg-surface-1`, `text-correct`, etc.
+
+#### 3. Base Layer Resets
+```css
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }  /* CSS reset */
+  ::selection { background-color: rgba(129, 140, 248, 0.3); }  /* Purple text selection */
+  ::-webkit-scrollbar { ... }  /* Custom thin scrollbar styling */
+}
+```
+
+#### 4. Keyframe Animations (6 total)
+
+| Animation | What it does |
+|-----------|-------------|
+| `fadeInUp` | Elements slide up + fade in (page load entrance) |
+| `pulse-glow` | Subtle glowing box-shadow pulse (active elements) |
+| `blink` | Classic cursor blink (on/off every 0.5s) |
+| `gradient-shift` | Animating gradient background position (logo shimmer) |
+| `slideDown` | Results panel slides down into view |
+| `countUp` | Stats cards pop up with slight bounce |
+| `shake` | Horizontal shake when wrong key is pressed |
+
+#### 5. Custom Utility Classes (`@utility`)
+
+```css
+@utility animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+@utility animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+@utility animate-blink { animation: blink 1s step-end infinite; }
+@utility animate-gradient { background-size: 200% 200%; animation: gradient-shift 3s ease infinite; }
+@utility animate-slide-down { animation: slideDown 0.4s ease-out both; }
+@utility animate-count-up { animation: countUp 0.3s ease-out both; }
+@utility animate-shake { animation: shake 0.35s ease-out; }
+```
+
+Tailwind v4's `@utility` directive makes these available as Tailwind classes (e.g., `className="animate-shake"`).
+
+---
+
+### [TypingPractice.jsx](file:///c:/Users/HP/codeflow/src/components/TypingPractice.jsx) — ★ The Core Component
+
+This is the heart of the app at **509 lines**. Let me break it down section by section.
+
+---
+
+#### Section 1: Code Snippets Data (Lines 4–49)
+
+```js
+const CODE_SNIPPETS = [
+  { title: "For Loop — C++", language: "cpp", code: `...` },
+  { title: "Binary Search — C++", language: "cpp", code: `...` },
+  { title: "FizzBuzz — Python", language: "python", code: `...` },
+];
+```
+
+A hardcoded array of 3 code snippets. Each has:
+- `title` — displayed in the tab bar and selector buttons
+- `language` — shown as a badge (e.g., "CPP")
+- `code` — the actual multi-line code string the user must type
+
+---
+
+#### Section 2: StatCard Component (Lines 52–67)
+
+```jsx
+function StatCard({ label, value, unit, delay, icon }) {
+  return (
+    <div className="... animate-count-up" style={{ animationDelay: `${delay}ms` }}>
+      <span>⚡ Speed</span>
+      <span>42</span>
+      <span>WPM</span>
+    </div>
+  );
+}
+```
+
+A reusable card that displays one stat (WPM, Accuracy, etc.) in the results panel. The `delay` prop staggers the entrance animation so cards appear one after another.
+
+---
+
+#### Section 3: ResultsPanel Component (Lines 70–127)
+
+Shown when the user finishes typing a snippet. Displays:
+- **4 StatCards** in a grid: Speed (WPM), Accuracy (%), Correct chars, Time
+- **Accuracy progress bar** — color changes based on score:
+  - ≥95%: Green gradient
+  - ≥80%: Yellow/amber gradient
+  - <80%: Red gradient
+- **Two buttons**: "↻ Retry" (same snippet) and "Next Snippet →"
+
+---
+
+#### Section 4: Main TypingPractice Component — State (Lines 130–143)
+
+```jsx
+const [snippetIndex, setSnippetIndex] = useState(0);     // Which snippet is selected
+const [userInput, setUserInput] = useState("");            // What the user has typed so far
+const [startTime, setStartTime] = useState(null);         // When typing started (timestamp)
+const [endTime, setEndTime] = useState(null);             // When typing ended (timestamp)
+const [isActive, setIsActive] = useState(false);          // Is the timer running?
+const [elapsedTime, setElapsedTime] = useState(0);        // Live timer display
+const [wrongAttempts, setWrongAttempts] = useState(0);    // Total wrong keystrokes
+const [shakeIndex, setShakeIndex] = useState(-1);         // Which char to shake
+const [isCurrentWrong, setIsCurrentWrong] = useState(false); // Is current position wrong?
+const [mistakeIndices, setMistakeIndices] = useState(new Set()); // Set of positions with errors
+const containerRef = useRef(null);     // Ref to the focusable code container
+const timerRef = useRef(null);         // Interval ID for the live timer
+const shakeTimerRef = useRef(null);    // Timeout ID for shake animation
+```
+
+---
+
+#### Section 5: Effects (Lines 150–171)
+
+**Effect 1 — Live Timer:**
+```jsx
+useEffect(() => {
+  if (isActive && startTime && !endTime) {
+    timerRef.current = setInterval(() => {
+      setElapsedTime(((Date.now() - startTime) / 1000).toFixed(1));
+    }, 100);  // Updates every 100ms
+  }
+  return () => clearInterval(timerRef.current);  // Cleanup
+}, [isActive, startTime, endTime]);
+```
+
+**Effect 2 — Detect Completion:**
+```jsx
+useEffect(() => {
+  if (isComplete && !endTime) {
+    setEndTime(Date.now());    // Record finish time
+    setIsActive(false);         // Stop timer
+  }
+}, [isComplete, endTime]);
+```
+
+**Effect 3 — Auto-focus:**
+```jsx
+useEffect(() => {
+  containerRef.current?.focus();   // Focus the code area when snippet changes
+}, [snippetIndex]);
+```
+
+---
+
+#### Section 6: Key Handler — The Core Logic (Lines 174–270)
+
+This is the most important function. It runs on every keypress.
+
+**Strict mode behavior:** The user can ONLY advance by pressing the correct key. Wrong keys are rejected (the character doesn't appear).
+
+```
+Key pressed → What happens:
+```
+
+| Key | Behavior |
+|-----|----------|
+| **Backspace** | Removes the last typed character. Clears error state. |
+| **Tab** | Inserts up to 4 spaces (only if the target expects spaces at that position) |
+| **Enter** | Inserts a newline `\n` PLUS all the leading whitespace on the next line automatically |
+| **Correct character** | Appends to `userInput`, clears error state |
+| **Wrong character** | Increments `wrongAttempts`, highlights current char red, triggers shake animation. Does NOT advance the cursor. |
+| **Ctrl/Alt/Meta** | Ignored (prevents shortcuts from interfering) |
+| **Non-character keys** (Shift, Caps, etc.) | Ignored |
+
+**Smart Enter behavior (Lines 220–241):**
+When the user presses Enter and the next character is `\n`, the app auto-inserts the newline AND all the leading spaces/tabs on the next line. This saves the user from manually typing indentation.
+
+**Timer start:**
+The timer starts on the very first keypress (not when the page loads).
+
+---
+
+#### Section 7: Computed Stats (Lines 272–296)
+
+```js
+const correctChars = userInput.length;          // In strict mode, all typed chars are correct
+const totalKeystrokes = userInput.length + wrongAttempts;
+const accuracy = Math.round((correctChars / totalKeystrokes) * 100);
+
+const wordsTyped = correctChars / 5;            // Standard: 1 word = 5 characters
+const minutes = (endTime - startTime) / 60000;  // Convert ms to minutes
+const wpm = Math.round(wordsTyped / minutes);   // Words per minute
+
+const progress = (userInput.length / targetText.length) * 100;  // Progress bar %
+```
+
+> [!NOTE]
+> **WPM calculation**: Uses the standard formula where 1 "word" = 5 characters, regardless of actual word boundaries. This is how all typing tests work (MonkeyType, TypeRacer, etc.).
+
+---
+
+#### Section 8: Reset & Next Functions (Lines 298–317)
+
+```js
+const resetPractice = () => {
+  // Resets ALL state back to initial values
+  setUserInput("");
+  setStartTime(null);
+  // ... etc
+};
+
+const nextSnippet = () => {
+  setSnippetIndex((prev) => (prev + 1) % CODE_SNIPPETS.length);  // Cycles through snippets
+  resetPractice();
+};
+```
+
+---
+
+#### Section 9: Character Rendering (Lines 320–360)
+
+```jsx
+const renderCodeDisplay = () => {
+  return targetText.split("").map((char, index) => {
+    // Determine color for each character:
+    // - Already typed + had a mistake → RED with underline
+    // - Already typed + no mistake → GREEN
+    // - Not yet typed → GRAY (dimmed)
+    // - Current cursor position → blinking blue line
+    // - Current position + wrong key → RED background + shake animation
+  });
+};
+```
+
+Each character is individually rendered as a `<span>` with:
+- Color based on status (correct/incorrect/untyped)
+- A blinking cursor line at the current position
+- Shake animation on wrong input
+- Newlines render as `\n`, spaces as non-breaking spaces (`\u00A0`) so they're visible
+
+---
+
+#### Section 10: JSX Layout (Lines 362–508)
+
+The rendered UI consists of:
+
+1. **Ambient Background** — Two large blurred circles (indigo + violet) creating a subtle glow effect behind everything
+
+2. **Header** — "Typing Practice" badge + animated gradient "CodeFlow" title + tagline
+
+3. **Snippet Selector** — Row of buttons to switch between the 3 code snippets. Active snippet gets highlighted border.
+
+4. **Live Stats Bar** — Shows WPM, Accuracy %, Time, and character count in real-time during typing
+
+5. **Progress Bar** — Thin gradient bar showing completion percentage
+
+6. **Code Display** — The main typing area:
+   - Styled like a code editor with macOS-style traffic light dots (🔴🟡🟢)
+   - Title bar showing snippet name and language badge
+   - `<pre><code>` block with the individually-colored characters
+   - Focusable div (`tabIndex={0}`) that captures keyboard events
+   - `select-none` prevents text selection (you must type, not copy)
+
+7. **Start Prompt** — "Click above or start typing to begin" (shown only before typing starts)
+
+8. **Results Panel** — Appears after completion with stats and retry/next buttons
+
+9. **Footer** — Keyboard hints: Tab = 4 spaces, Enter = newline
+
+---
+
+## Public Assets
+
+### [favicon.svg](file:///c:/Users/HP/codeflow/public/favicon.svg)
+
+A 32×32 SVG icon for the browser tab. It's a dark rounded square with:
+- A `>` terminal prompt symbol (indigo stroke)
+- A `_` underscore (lighter indigo)
+- An indigo-to-purple gradient border
+
+### [icons.svg](file:///c:/Users/HP/codeflow/public/icons.svg)
+
+An SVG **sprite sheet** containing social media icons as `<symbol>` elements:
+- Bluesky, Discord, GitHub, X (Twitter), Documentation, Social
+- Used via `<use href="/icons.svg#github-icon" />` syntax
+
+> [!NOTE]
+> These icons are **not currently used** in the app. They appear to be leftover from a template or reserved for future use.
+
+---
+
+## Asset Files (`src/assets/`)
+
+- [hero.png](file:///c:/Users/HP/codeflow/src/assets/hero.png) — A hero image (not currently used in code)
+- [react.svg](file:///c:/Users/HP/codeflow/src/assets/react.svg) — React logo (from Vite template, unused)
+- [vite.svg](file:///c:/Users/HP/codeflow/src/assets/vite.svg) — Vite logo (from Vite template, unused)
+
+---
+
+## How the App Works — Complete Flow
+
+```mermaid
+graph TD
+    A["User opens app"] --> B["TypingPractice mounts"]
+    B --> C["Code snippet displayed char-by-char in gray"]
+    C --> D["User presses a key"]
+    D --> E{"First keypress?"}
+    E -- Yes --> F["Start timer"]
+    E -- No --> G{"Which key?"}
+    F --> G
+    G -- "Correct char" --> H["Append to userInput, color GREEN"]
+    G -- "Wrong char" --> I["Increment wrongAttempts, shake, show RED"]
+    G -- "Backspace" --> J["Remove last char from userInput"]
+    G -- "Enter" --> K["Auto-insert newline + indentation"]
+    G -- "Tab" --> L["Insert up to 4 spaces"]
+    H --> M{"All chars typed?"}
+    I --> D
+    J --> D
+    K --> M
+    L --> M
+    M -- No --> D
+    M -- Yes --> N["Stop timer, show ResultsPanel"]
+    N --> O{"User choice?"}
+    O -- "Retry" --> C
+    O -- "Next" --> P["Load next snippet, reset"]
+    P --> C
+```
+
+---
+
+## Summary
+
+| File | Role |
+|------|------|
+| `package.json` | Project config, dependencies, npm scripts |
+| `vite.config.js` | Build tool setup (React + Tailwind plugins) |
+| `index.html` | HTML shell, loads fonts, mounts React |
+| `.gitignore` | Files excluded from Git |
+| `.oxlintrc.json` | Linter rules for React hooks |
+| `main.jsx` | Entry point — renders `<App />` into DOM |
+| `App.jsx` | Root component — renders `<TypingPractice />` |
+| `index.css` | Design system: theme colors, 7 animations, utility classes |
+| `TypingPractice.jsx` | **Core app**: snippet data, keyboard handler, stats, UI |
+| `favicon.svg` | Browser tab icon (terminal prompt design) |
+| `icons.svg` | SVG sprite sheet (unused social icons) |
+| `assets/*` | Template images (unused) |
