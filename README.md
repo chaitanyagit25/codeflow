@@ -1,16 +1,55 @@
-# React + Vite
+# CodeFlow
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Duolingo-style touch typing practice for developers. Learn proper finger placement, build speed and accuracy through a 7-stage progressive curriculum, and track your streak — all while typing real code instead of random words.
 
-Currently, two official plugins are available:
+**Live app:** https://codeflow-jet.vercel.app
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Why CodeFlow
 
-## React Compiler
+Most typing tools measure speed. CodeFlow teaches the skill: a keyboard overlay shows which finger to use for every keystroke, in real time, while you type. Lessons progress from home-row drills to real JavaScript and Python snippets, so the muscle memory you build actually transfers to writing code, not just prose.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Features
 
-## Expanding the Oxlint configuration
+- **Finger-placement guidance** — an on-screen keyboard and hand guide highlight the correct finger for the next keystroke as you type
+- **7-stage curriculum, 56 lessons** — home row → full alphabet → numbers → symbols → real code snippets, unlocked in sequence
+- **Real-time stats** — live WPM and accuracy tracking during practice
+- **Streaks** — daily practice streak tracked server-side to keep you consistent
+- **Progress dashboard** — completion by stage, average WPM/accuracy, streak history
+- **GitHub OAuth** — sign in and pick up where you left off, on any device
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Tech stack
+
+- **Frontend:** React (Vite), Tailwind CSS
+- **3D:** React Three Fiber / Three.js (landing page hero)
+- **Backend:** Supabase (PostgreSQL, Auth, Row Level Security)
+- **Deployment:** Vercel
+
+## Architecture notes
+
+- All user data access is enforced through Postgres Row Level Security policies — users can only read/write their own progress and streak data, verified at the database level, not just the client.
+- Streak calculation runs as a database-level function on progress insert, so it can't be bypassed or duplicated by client-side manipulation.
+
+## Running locally
+
+```bash
+git clone https://github.com/chaitanyagit25/codeflow.git
+cd codeflow
+npm install
+```
+
+Create a `.env` file with your own Supabase project credentials:
+
+```
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+```bash
+npm run dev
+```
+
+## Roadmap
+
+- [ ] More advanced code snippets (additional languages)
+- [ ] Leaderboards
+- [ ] Mobile-responsive practice mode
