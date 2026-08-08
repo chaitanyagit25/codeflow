@@ -1,21 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
+import { getFingerForChar, needsShift } from "../lib/fingerMap";
+import VirtualKeyboard from "./VirtualKeyboard";
+import HandGuide from "./HandGuide";
 
 /* ── Stat Card ── */
-function StatCard({ label, value, unit, delay = 0, icon }) {
+function StatCard({ label, value, unit }) {
   return (
-    <div
-      className="flex flex-col items-center gap-1 rounded-xl border border-border bg-surface-2/50 px-6 py-4 backdrop-blur-sm animate-count-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <span className="text-xs font-medium uppercase tracking-widest text-muted">
-        {icon} {label}
+    <div className="flex flex-col items-center gap-1 rounded-md border border-border bg-surface-2 p-4">
+      <span className="text-[11px] font-mono text-[#a0a0a5] uppercase tracking-wider font-medium">
+        {label}
       </span>
-      <span className="text-3xl font-bold text-accent-bright tabular-nums">
+      <span className="text-2xl font-bold font-mono text-white tabular-nums">
         {value}
       </span>
-      {unit && <span className="text-xs text-muted">{unit}</span>}
+      {unit && <span className="text-[10px] text-[#a0a0a5] font-mono">{unit}</span>}
     </div>
   );
 }
@@ -23,57 +23,49 @@ function StatCard({ label, value, unit, delay = 0, icon }) {
 /* ── Results Panel ── */
 function ResultsPanel({ wpm, accuracy, correctChars, totalChars, timeTaken, onRestart, onBack }) {
   return (
-    <div className="animate-slide-down space-y-6 rounded-2xl border border-border bg-surface-1/80 p-8 backdrop-blur-md">
+    <div className="animate-slide-down space-y-6 rounded-lg border border-border bg-surface-1 p-6 sm:p-8">
       <div className="text-center">
-        <h2 className="text-2xl font-semibold text-accent-bright">
-          🎉 Complete!
+        <h2 className="text-xl font-bold tracking-tight text-[#f0f0f0]">
+          Lesson Complete
         </h2>
-        <p className="mt-1 text-sm text-muted">
-          Here's how you did
+        <p className="mt-1 text-xs text-[#a0a0a5]">
+          Performance summary
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Speed" value={wpm} unit="WPM" delay={100} icon="⚡" />
-        <StatCard label="Accuracy" value={`${accuracy}%`} delay={200} icon="🎯" />
-        <StatCard label="Correct" value={correctChars} unit={`/ ${totalChars}`} delay={300} icon="✅" />
-        <StatCard label="Time" value={`${timeTaken}s`} delay={400} icon="⏱" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Speed" value={wpm} unit="WPM" />
+        <StatCard label="Accuracy" value={`${accuracy}%`} />
+        <StatCard label="Correct" value={correctChars} unit={`/ ${totalChars}`} />
+        <StatCard label="Time" value={`${timeTaken}s`} />
       </div>
 
       {/* Rating bar */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs text-muted">
+        <div className="flex items-center justify-between text-xs font-mono text-[#a0a0a5]">
           <span>Accuracy</span>
-          <span>{accuracy}%</span>
+          <span className="text-white font-bold">{accuracy}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-surface-3">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-[#1a1a1c] border border-[#26262c]">
           <div
-            className="h-full rounded-full transition-all duration-700 ease-out"
-            style={{
-              width: `${accuracy}%`,
-              background:
-                accuracy >= 95
-                  ? "linear-gradient(90deg, #34d399, #6ee7b7)"
-                  : accuracy >= 80
-                    ? "linear-gradient(90deg, #fbbf24, #f59e0b)"
-                    : "linear-gradient(90deg, #f87171, #ef4444)",
-            }}
+            className="h-full rounded-full bg-[#3ecf8e] transition-all duration-500 ease-out"
+            style={{ width: `${accuracy}%` }}
           />
         </div>
       </div>
 
-      <div className="flex justify-center gap-3">
+      <div className="flex justify-center gap-3 pt-2">
         <button
           onClick={onRestart}
-          className="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-surface-2 px-6 py-2.5 text-sm font-medium text-gray-300 transition-all hover:border-accent hover:text-white"
+          className="cursor-pointer rounded-md border border-border bg-surface-2 px-5 py-2 text-xs font-semibold text-gray-200 transition-colors hover:border-gray-500 hover:text-white"
         >
-          <span className="relative z-10">↻ Retry</span>
+          ↻ Retry
         </button>
         <button
           onClick={onBack}
-          className="group relative cursor-pointer overflow-hidden rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 transition-all hover:shadow-indigo-500/40 hover:brightness-110"
+          className="cursor-pointer rounded-md bg-white px-5 py-2 text-xs font-bold text-gray-900 shadow-sm transition-all hover:bg-gray-200 active:scale-[0.98]"
         >
-          <span className="relative z-10">← Back to Lessons</span>
+          ← Next Lesson
         </button>
       </div>
     </div>
@@ -97,7 +89,10 @@ export default function TypingPractice({ lesson, onBack }) {
   const progressSavedRef = useRef(false);
   const { user } = useAuth();
 
-  const targetText = lesson.code;
+  const targetText = useMemo(
+    () => (lesson.code || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n"),
+    [lesson.code]
+  );
   const isComplete = userInput.length >= targetText.length && userInput.length > 0;
 
   // Live timer
@@ -155,12 +150,10 @@ export default function TypingPractice({ lesson, onBack }) {
     (e) => {
       if (isComplete) return;
 
-      // Prevent default for keys we handle
       if (e.key === "Tab" || e.key === "Enter") {
         e.preventDefault();
       }
 
-      // Backspace — go back one character
       if (e.key === "Backspace") {
         e.preventDefault();
         setUserInput((prev) => prev.slice(0, -1));
@@ -169,18 +162,13 @@ export default function TypingPractice({ lesson, onBack }) {
         return;
       }
 
-      // Ignore modifier keys and non-character keys
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.key.length > 1 && e.key !== "Tab" && e.key !== "Enter") return;
 
-      // Determine what character was pressed
       let typedChar;
       if (e.key === "Tab") {
-        // Tab inserts 4 spaces one at a time — but we match the target
         typedChar = targetText[userInput.length];
-        // Only allow tab if the next expected chars are spaces
         if (typedChar !== " ") return;
-        // Insert spaces up to the next 4 or until non-space
         let spacesToInsert = "";
         for (let i = 0; i < 4; i++) {
           if (targetText[userInput.length + i] === " ") {
@@ -198,23 +186,39 @@ export default function TypingPractice({ lesson, onBack }) {
         }
         return;
       } else if (e.key === "Enter") {
-        // Enter: auto-skip newline + all leading whitespace on the next line
-        const expectedChar = targetText[userInput.length];
-        if (expectedChar !== "\n") return;
+        const nextNewlineIdx = targetText.indexOf("\n", userInput.length);
+        if (nextNewlineIdx === -1) return;
 
-        // Start timer on first keypress
+        let canJump = true;
+        for (let i = userInput.length; i < nextNewlineIdx; i++) {
+          if (targetText[i] !== " " && targetText[i] !== "\t") {
+            canJump = false;
+            break;
+          }
+        }
+
+        if (!canJump) {
+          setWrongAttempts((prev) => prev + 1);
+          setIsCurrentWrong(true);
+          setMistakeIndices((prev) => new Set(prev).add(userInput.length));
+          setShakeIndex(userInput.length);
+          clearTimeout(shakeTimerRef.current);
+          shakeTimerRef.current = setTimeout(() => setShakeIndex(-1), 400);
+          return;
+        }
+
         if (!startTime) {
           setStartTime(Date.now());
           setIsActive(true);
         }
 
-        // Collect the newline + all leading spaces/tabs on the next line
-        let autoInsert = "\n";
-        let nextIdx = userInput.length + 1;
+        let autoInsert = targetText.slice(userInput.length, nextNewlineIdx + 1);
+        let nextIdx = nextNewlineIdx + 1;
         while (nextIdx < targetText.length && (targetText[nextIdx] === " " || targetText[nextIdx] === "\t")) {
           autoInsert += targetText[nextIdx];
           nextIdx++;
         }
+
         setUserInput((prev) => prev + autoInsert);
         setShakeIndex(-1);
         setIsCurrentWrong(false);
@@ -225,19 +229,16 @@ export default function TypingPractice({ lesson, onBack }) {
 
       const expectedChar = targetText[userInput.length];
 
-      // Start timer on first keypress
       if (!startTime) {
         setStartTime(Date.now());
         setIsActive(true);
       }
 
       if (typedChar === expectedChar) {
-        // Correct — advance
         setUserInput((prev) => prev + typedChar);
         setShakeIndex(-1);
         setIsCurrentWrong(false);
       } else {
-        // Wrong — don't advance, mark current char as wrong and shake
         setWrongAttempts((prev) => prev + 1);
         setIsCurrentWrong(true);
         setMistakeIndices((prev) => new Set(prev).add(userInput.length));
@@ -250,7 +251,6 @@ export default function TypingPractice({ lesson, onBack }) {
   );
 
   /* ── Computed stats ── */
-  // In strict mode every char in userInput is correct
   const correctChars = userInput.length;
   const totalKeystrokes = userInput.length + wrongAttempts;
   const accuracy =
@@ -275,7 +275,15 @@ export default function TypingPractice({ lesson, onBack }) {
     100
   );
 
-  /* ── Reset / Next ── */
+  /* ── Next-char & finger info ── */
+  const nextChar = isComplete ? null : (targetText[userInput.length] ?? null);
+  const activeFinger = useMemo(() => getFingerForChar(nextChar), [nextChar]);
+  const shiftFinger = useMemo(() => {
+    if (!needsShift(nextChar)) return null;
+    return activeFinger?.startsWith("left") ? "right-pinky" : "left-pinky";
+  }, [nextChar, activeFinger]);
+
+  /* ── Reset ── */
   const resetPractice = () => {
     setUserInput("");
     setStartTime(null);
@@ -300,22 +308,19 @@ export default function TypingPractice({ lesson, onBack }) {
 
       if (index < userInput.length) {
         if (mistakeIndices.has(index)) {
-          // This position had a wrong attempt — show red with underline
-          colorClass = "text-incorrect";
-          extraClass = "underline decoration-incorrect/60 decoration-2 underline-offset-4";
+          colorClass = "text-red-400";
+          extraClass = "underline decoration-red-400/60 decoration-2 underline-offset-4";
         } else {
-          colorClass = "text-correct";
+          colorClass = "text-[#3ecf8e]";
         }
       }
 
-      // Current cursor position
       const isCursor = index === userInput.length && !isComplete;
       const isShaking = index === shakeIndex;
 
-      // Show red on current char if wrong key was pressed
       if (isCursor && isCurrentWrong) {
-        colorClass = "text-incorrect";
-        extraClass = "bg-incorrect/15 rounded-[2px]";
+        colorClass = "text-red-400";
+        extraClass = "bg-red-500/20 rounded-[2px]";
       }
 
       if (isShaking) {
@@ -325,7 +330,7 @@ export default function TypingPractice({ lesson, onBack }) {
       return (
         <span key={index} className={`relative inline ${extraClass}`}>
           {isCursor && (
-            <span className="absolute -left-[1px] top-0 h-full w-[2px] bg-cursor animate-blink rounded-full" />
+            <span className="absolute -left-[1px] top-0 h-full w-[2px] bg-[#3ecf8e] animate-blink rounded-full" />
           )}
           <span className={`${colorClass} transition-colors duration-75`}>
             {char === "\n" ? "\n" : char === " " ? "\u00A0" : char}
@@ -337,109 +342,91 @@ export default function TypingPractice({ lesson, onBack }) {
 
   return (
     <div className="min-h-screen bg-surface-0 font-sans">
-      {/* ── Ambient gradient background ── */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-indigo-600/[0.07] blur-[120px]" />
-        <div className="absolute -bottom-1/3 right-0 h-[400px] w-[400px] rounded-full bg-violet-600/[0.05] blur-[100px]" />
-      </div>
-
-      <div className="relative mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* ── Header ── */}
-        <header className="mb-10 animate-fade-in-up">
+        <header className="mb-6 flex items-center justify-between">
           <button
             id="back-to-lessons-btn"
             onClick={onBack}
-            className="mb-6 cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2/60 px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-accent/50 hover:text-gray-300"
+            className="cursor-pointer inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-1 px-3 py-1.5 text-xs font-semibold text-gray-200 transition-colors hover:border-gray-500 hover:text-white"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Back to Lessons
+            Curriculum
           </button>
-          <div className="text-center">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-surface-2/60 px-4 py-1.5 text-xs font-medium text-muted backdrop-blur-sm">
-              <span className="inline-block h-2 w-2 rounded-full bg-correct animate-pulse" />
-              Typing Practice
-            </div>
-            <h2 className="text-2xl font-bold text-gray-200 sm:text-3xl">
+          <div className="text-right">
+            <h2 className="text-sm font-semibold tracking-tight text-[#f0f0f0]">
               {lesson.title}
             </h2>
-            <p className="mt-2 text-sm text-muted">
-              Type the code below — accuracy counts!
-            </p>
+            <span className="text-[10px] font-mono text-[#a0a0a5] uppercase tracking-wider font-medium">
+              {lesson.language}
+            </span>
           </div>
         </header>
 
         {/* ── Live Stats Bar ── */}
-        <div
-          className="mb-4 flex items-center justify-between rounded-xl border border-border bg-surface-1/60 px-5 py-3 backdrop-blur-sm animate-fade-in-up"
-          style={{ animationDelay: "200ms" }}
-        >
-          <div className="flex items-center gap-6 text-xs">
-            <span className="flex items-center gap-1.5 text-muted">
-              <span className="text-accent">⚡</span> WPM:{" "}
-              <span className="font-semibold text-gray-200 tabular-nums">{wpm}</span>
+        <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-surface-1 px-4 py-3 text-xs font-mono">
+          <div className="flex items-center gap-6">
+            <span className="text-[#a0a0a5] font-medium">
+              WPM: <span className="font-bold text-[#3ecf8e] text-sm tabular-nums">{wpm}</span>
             </span>
-            <span className="flex items-center gap-1.5 text-muted">
-              <span className="text-correct">🎯</span> Accuracy:{" "}
-              <span className="font-semibold text-gray-200 tabular-nums">{accuracy}%</span>
+            <span className="text-[#a0a0a5] font-medium">
+              Accuracy: <span className="font-bold text-white text-sm tabular-nums">{accuracy}%</span>
             </span>
-            <span className="flex items-center gap-1.5 text-muted">
-              <span>⏱</span> Time:{" "}
-              <span className="font-semibold text-gray-200 tabular-nums">{timeTaken}s</span>
+            <span className="text-[#a0a0a5] font-medium">
+              Time: <span className="font-bold text-white text-sm tabular-nums">{timeTaken}s</span>
             </span>
           </div>
-          <div className="text-xs text-muted">
-            {userInput.length} / {targetText.length} chars
+          <div className="text-[#a0a0a5] font-semibold text-xs tabular-nums">
+            {userInput.length} / {targetText.length}
           </div>
         </div>
 
         {/* ── Progress Bar ── */}
-        <div className="mb-6 h-1 overflow-hidden rounded-full bg-surface-3 animate-fade-in-up" style={{ animationDelay: "250ms" }}>
+        <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-[#1a1a1c] border border-[#26262c]">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-150 ease-out"
+            className="h-full rounded-full bg-[#3ecf8e] transition-all duration-150 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
 
         {/* ── Code Display ── */}
         <div
-          className="mb-4 animate-fade-in-up"
-          style={{ animationDelay: "300ms" }}
+          className="mb-6"
           onClick={() => containerRef.current?.focus()}
         >
           <div
             ref={containerRef}
             tabIndex={0}
             onKeyDown={handleKeyDown}
-            className="overflow-hidden rounded-2xl border border-border bg-surface-1/80 shadow-2xl shadow-black/20 backdrop-blur-md outline-none focus:ring-1 focus:ring-accent/30"
+            className="overflow-hidden rounded-md border border-border bg-[#121215] outline-none focus:border-gray-500"
           >
             {/* Title bar */}
-            <div className="flex items-center gap-2 border-b border-border bg-surface-2/60 px-4 py-2.5">
-              <div className="flex gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-                <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-              </div>
-              <span className="ml-2 text-xs text-muted font-medium">{lesson.title}</span>
-              <span className="ml-auto rounded-md bg-surface-3/60 px-2 py-0.5 text-[10px] text-muted uppercase tracking-wider">
-                {lesson.language}
-              </span>
+            <div className="flex items-center justify-between border-b border-border bg-surface-1 px-4 py-2.5 text-xs font-mono text-gray-300">
+              <span className="truncate font-medium">{lesson.title}</span>
+              <span className="text-[10px] text-[#a0a0a5] uppercase font-bold">{lesson.language}</span>
             </div>
 
             {/* Code area */}
-            <pre className="overflow-x-auto p-6 font-mono text-sm leading-7 select-none">
+            <pre className="overflow-x-auto p-6 font-mono text-sm leading-relaxed select-none">
               <code>{renderCodeDisplay()}</code>
             </pre>
           </div>
         </div>
 
+        {/* ── Keyboard Guide ── */}
+        <div className="mb-6 space-y-4">
+          <HandGuide activeFinger={activeFinger} shiftFinger={shiftFinger} />
+          <VirtualKeyboard nextChar={nextChar} />
+        </div>
+
         {/* ── Prompt ── */}
         {!isActive && !isComplete && userInput.length === 0 && (
-          <div className="mb-6 text-center animate-fade-in-up" style={{ animationDelay: "400ms" }}>
-            <p className="inline-flex items-center gap-2 rounded-lg border border-dashed border-border bg-surface-2/30 px-5 py-3 text-sm text-muted">
-              <span className="animate-pulse text-accent">▸</span>
-              Click above or start typing to begin
+          <div className="mb-6 text-center">
+            <p className="inline-flex items-center gap-2 rounded-md border border-border bg-surface-1 px-4 py-2 text-xs font-mono text-gray-300">
+              <span className="text-[#3ecf8e] font-bold">▸</span>
+              Click box and start typing to begin
             </p>
           </div>
         )}
@@ -461,13 +448,9 @@ export default function TypingPractice({ lesson, onBack }) {
         )}
 
         {/* ── Footer ── */}
-        <footer className="mt-16 text-center text-xs text-muted/60 animate-fade-in-up" style={{ animationDelay: "500ms" }}>
+        <footer className="mt-12 text-center text-xs text-[#a0a0a5] font-mono">
           <p>
-            <span className="text-accent/60">Tab</span> inserts 4 spaces
-            &nbsp;·&nbsp;
-            <span className="text-accent/60">↵</span> for newlines
-            &nbsp;·&nbsp;
-            Built with React + Tailwind
+            Tab = 4 spaces &nbsp;·&nbsp; Enter = newline &nbsp;·&nbsp; Strict character matching
           </p>
         </footer>
       </div>
